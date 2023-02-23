@@ -30,17 +30,28 @@ class ImageDataset(Dataset):
     def __getitem__(self, index):
         image= self.dataset[index][self.image_column]
         return self.transform(image)
+    
 class ImageTextDataset(ImageDataset):
     def __init__(self, dataset, image_size, tokenizer, image_column="image", caption_column="caption"):
         super().__init__(dataset, image_size=image_size, image_column=image_column)
         self.caption_column = caption_column
         self.tokenizer = tokenizer
     def __getitem__(self, index):
-        image= self.dataset[index][self.image_column]
+        image_path = self.dataset[index][self.image_column]
+        image = Image.open(image_path)
+        if not image.mode == "RGB":
+            image = image.convert("RGB")
+
+        
+        
         if self.caption_column == None:
             text = ""
         else:
-            text = self.dataset[index][self.caption_column]
+            caption_file = self.dataset[index][self.caption_column]
+            descriptions = Path(caption_file).read_text().split('\n')
+            descriptions = list(filter(lambda t: len(t) > 0, descriptions))
+            text = descriptions[0]
+            
         encoded = self.tokenizer.batch_encode_plus(
             [text],
             return_tensors="pt",
@@ -57,13 +68,20 @@ def get_dataset_from_dataroot(data_root, args):
     image_paths = list(Path(data_root).rglob("*.[jJ][pP][gG]"))
     random.shuffle(image_paths)
     data_dict = {args.image_column: [], args.caption_column: []}
+    image_paths = image_paths[:1000]
+    print(f"Found {len(image_paths)} images")
     for image_path in image_paths:
-        image = Image.open(image_path)
-        if not image.mode == "RGB":
-            image = image.convert("RGB")
-        data_dict[args.image_column].append(image)
-        data_dict[args.caption_column].append(None)
+        # image = Image.open(image_path)
+        # if not image.mode == "RGB":
+        #     image = image.convert("RGB")
+        
+        text_file = str(image_path).replace("jpg", "txt") 
+
+        data_dict[args.image_column].append(str(image_path))
+        data_dict[args.caption_column].append(text_file)
+
     return datasets.Dataset.from_dict(data_dict)
+
 def split_dataset_into_dataloaders(dataset, valid_frac=0.05, seed=42, batch_size=1):
     if valid_frac > 0:
         train_size = int((1 - valid_frac) * len(dataset))
