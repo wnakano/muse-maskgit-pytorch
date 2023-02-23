@@ -66,6 +66,8 @@ def get_accelerator(**accelerate_kwargs):
 
     accelerator = Accelerator(**accelerate_kwargs)
     return accelerator
+
+
 def split_dataset(dataset, valid_frac, accelerator, seed=42):
     if valid_frac > 0:
         train_size = int((1 - valid_frac) * len(dataset))
@@ -109,7 +111,7 @@ class BaseAcceleratedTrainer(nn.Module):
         super().__init__()
         self.model=None
         # instantiate accelerator
-        self.gradient_accumulation_steps = accelerate_kwargs.gradient_accumulation_steps
+        self.gradient_accumulation_steps = accelerate_kwargs.get("gradient_accumulation_steps")
         self.accelerator = accelerator
         self.results_dir = Path(results_dir)
         if len([*self.results_dir.glob("**/*")]) > 0 and yes_or_no(
