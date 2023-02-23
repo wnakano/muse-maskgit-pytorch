@@ -47,7 +47,7 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
         results_dir="./results",
         logging_dir="./results/logs",
         apply_grad_penalty_every=4,
-        accelerate_kwargs: dict = dict(),
+        accelerate_kwargs: dict,
         lr=3e-4,
         use_ema=True,
         ema_beta=0.995,
@@ -55,10 +55,21 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
         ema_update_every=1,
         validation_prompt="a photo of a dog"
     ):
-        super().__init__(dataloader, valid_dataloader, current_step=current_step, num_train_steps=num_train_steps, batch_size=batch_size,\
-                        gradient_accumulation_steps=gradient_accumulation_steps, max_grad_norm=max_grad_norm, save_results_every=save_results_every, \
-                        save_model_every=save_model_every, results_dir=results_dir, logging_dir=logging_dir, apply_grad_penalty_every=apply_grad_penalty_every, \
-                        accelerate_kwargs=accelerate_kwargs)
+        super().__init__(
+            dataloader, 
+            valid_dataloader, 
+            current_step=current_step, 
+            num_train_steps=num_train_steps, 
+            batch_size=batch_size,
+            gradient_accumulation_steps=gradient_accumulation_steps, 
+            max_grad_norm=max_grad_norm, 
+            save_results_every=save_results_every,
+            save_model_every=save_model_every, 
+            results_dir=results_dir, 
+            logging_dir=logging_dir, 
+            apply_grad_penalty_every=apply_grad_penalty_every,
+            accelerator=accelerator,
+            accelerate_kwargs=accelerate_kwargs)
 
         # maskgit
         self.model = maskgit
@@ -94,23 +105,26 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
                 update_every=ema_update_every,
             )
             self.ema_model = self.prepare(self.ema_model)
+
     def log_validation_images(self, validation_prompt, step, cond_image=None, cond_scale=3, temperature=1):
         image = self.model.generate([validation_prompt], cond_images=cond_image, cond_scale=cond_scale, temperature=temperature)
         super().log_validation_images([image], step, validation_prompt)
+
     def train_step(self):
         device = self.device
         steps = int(self.steps.item())
         apply_grad_penalty = not (steps % self.apply_grad_penalty_every)
 
-
         if self.use_ema:
             ema_model = self.ema_model.module if self.is_distributed else self.ema_model
+        
         self.model.train()
+
         # logs
         train_loss = 0
         with self.accelerator.accumulate(self.model):
             imgs, input_ids, attn_mask = next(self.dl_iter)
-            text_embeds = t5_encode_text_from_encoded(input_ids, attn_mask, self.model.t5, device)
+            text_embeds = t5_encode_text_from_encoded(input_ids, attn_mask, self.model.transformer.t5, device)
             imgs = imgs.to(device)
             loss = self.model(
                 imgs,
