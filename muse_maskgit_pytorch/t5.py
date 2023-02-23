@@ -22,7 +22,7 @@ T5_CONFIGS = {}
 # singleton globals
 
 def get_tokenizer(name):
-    tokenizer = T5Tokenizer.from_pretrained(name)
+    tokenizer = T5Tokenizer.from_pretrained(name, use_fast=False)
     return tokenizer
 
 def get_model(name):
@@ -38,6 +38,8 @@ def get_model_and_tokenizer(name):
         T5_CONFIGS[name]["model"] = get_model(name)
     if "tokenizer" not in T5_CONFIGS[name]:
         T5_CONFIGS[name]["tokenizer"] = get_tokenizer(name)
+    
+    # print(T5_CONFIGS)
 
     return T5_CONFIGS[name]['model'], T5_CONFIGS[name]['tokenizer']
 
@@ -79,6 +81,7 @@ def t5_encode_text_from_encoded(input_ids,
 
     encoded_text.to(output_device)
     return encoded_text
+
 @beartype
 def t5_encode_text(
     texts: Union[str, List[str]],
