@@ -25,6 +25,9 @@ def parse_args():
         "--seq_len", type=int, default=1024, help="The sequence length. Must be equivalent to fmap_size ** 2 in vae"
     )
     parser.add_argument(
+        "--dim", type=int, default=128, help="Model dimension"
+    )
+    parser.add_argument(
         "--depth", type=int, default=2, help="The depth of model"
     )
     parser.add_argument(
@@ -41,6 +44,9 @@ def parse_args():
     )
     parser.add_argument(
         "--cond_image_size", type=int, default=None, help="Conditional image size."
+    )
+    parser.add_argument(
+        "--cond_drop_prob", type=float, default=0.25, help="Conditional dropout. Related to classifier free guidance"
     )
     parser.add_argument(
         "--validation_prompt", type=str, default="A photo of a dog", help="Validation prompt."
@@ -132,7 +138,8 @@ def parse_args():
         default=50000,
         help="Total number of steps to train for. eg. 50000.",
     )
-    parser.add_argument("--dim", type=int, default=128, help="Model dimension.")
+    # Duplicated line
+    # parser.add_argument("--dim", type=int, default=128, help="Model dimension.")
     parser.add_argument("--batch_size", type=int, default=1, help="Batch Size.")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning Rate.")
     parser.add_argument(
@@ -151,7 +158,6 @@ def parse_args():
         help="Save the model every this number of steps.",
     )
     parser.add_argument("--vq_codebook_size", type=int, default=256, help="Image Size.")
-    parser.add_argument("--cond_drop_prob", type=float, default=0.5, help="Conditional dropout, for classifier free guidance.")
     parser.add_argument(
         "--image_size",
         type=int,
@@ -164,7 +170,6 @@ def parse_args():
 def main():
     args = parse_args()
     accelerator = get_accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps,mixed_precision=args.mixed_precision)
-    
     if args.train_data_dir:
         dataset = get_dataset_from_dataroot(args.train_data_dir, args)
     elif args.dataset_name:
@@ -195,6 +200,8 @@ def main():
     )
 
     # (2) pass your trained VAE and the base transformer to MaskGit
+    
+    # print(dir(transformer.tokenizer))
 
     maskgit = MaskGit(
         vae = vae,                 # vqgan vae
@@ -203,10 +210,14 @@ def main():
         cond_drop_prob = args.cond_drop_prob,     # conditional dropout, for classifier free guidance
         cond_image_size = args.cond_image_size
     ).cuda()
-    
     dataset = ImageTextDataset(dataset, args.image_size, transformer.tokenizer, image_column=args.image_column, caption_column=args.caption_column)
     dataloader, validation_dataloader = split_dataset_into_dataloaders(dataset, args.valid_frac, args.seed, args.batch_size)
-
+    accelerate_kwargs={
+            #'mixed_precision': 'fp16',
+            'gradient_accumulation_steps': 2,
+            'device_placement': False,
+            'split_batches': True,
+        }
     trainer = MaskGitTrainer(
         maskgit,\
         dataloader,
@@ -215,7 +226,7 @@ def main():
         current_step=0,
         num_train_steps=args.num_train_steps,
         batch_size=args.batch_size,
-        image_size=args.image_size,  # you may want to start with small images, and then curriculum learn to larger ones, but because the vae is all convolution, it should generalize to 512 (as in paper) without training on it
+        # image_size=args.image_size,  # you may want to start with small images, and then curriculum learn to larger ones, but because the vae is all convolution, it should generalize to 512 (as in paper) without training on it
         lr=args.lr,
         max_grad_norm=args.max_grad_norm,
         save_results_every=args.save_results_every,
@@ -226,9 +237,10 @@ def main():
         ema_beta=args.ema_beta,
         ema_update_after_step=args.ema_update_after_step,
         ema_update_every=args.ema_update_every,
-        apply_grad_penalty_every=args.apply_grad_penaly_every,
+        apply_grad_penalty_every=args.apply_grad_penalty_every,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        validation_prompt=args.validation_prompt
+        validation_prompt=args.validation_prompt,
+        accelerate_kwargs=accelerate_kwargs
     )
 
     trainer.train()
