@@ -149,6 +149,7 @@ class BaseAcceleratedTrainer(nn.Module):
             optim=self.optim.state_dict(),
         )
         torch.save(pkg, path)
+    
     def load(self, path):
         path = Path(path)
         assert path.exists()
@@ -159,11 +160,13 @@ class BaseAcceleratedTrainer(nn.Module):
 
         self.optim.load_state_dict(pkg["optim"])
         return pkg
+    
     def log_validation_images(self, images, step, prompt=None):
+        images = list(map(lambda image: image.cpu().numpy(), images))
+        images = rearrange(np.asarray(images), "M N C H W -> (M N) H W C")
         for tracker in self.accelerator.trackers:
             if tracker.name == "tensorboard":
-                np_images = np.stack([np.asarray(img) for img in images])
-                tracker.writer.add_images("validation", np_images, step, dataformats="NHWC")
+                tracker.writer.add_images("validation", images, step, dataformats="NHWC")
             if tracker.name == "wandb":
                 tracker.log(
                     {
@@ -173,16 +176,22 @@ class BaseAcceleratedTrainer(nn.Module):
                         ]
                     }
                 )
+                
     def print(self, msg):
         self.accelerator.print(msg)
+
     def log(self, log_dict):
         self.accelerator.log(log_dict)
+    
     def prepare(self, *args):
         return self.accelerator.prepare(*args)
+    
     def get_state_dict(self, model):
         return self.accelerator.get_state_dict(model)
+    
     def unwrap_model(self, model):
         return self.accelerator.unwrap_model(model)
+    
     @property
     def device(self):
         return self.accelerator.device
