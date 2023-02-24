@@ -209,8 +209,6 @@ def main():
 
     # (2) pass your trained VAE and the base transformer to MaskGit
     
-    # print(dir(transformer.tokenizer))
-
     maskgit = MaskGit(
         vae = vae,                 # vqgan vae
         transformer = transformer, # transformer
