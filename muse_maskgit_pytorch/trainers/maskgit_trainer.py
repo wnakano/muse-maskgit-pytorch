@@ -33,17 +33,18 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
     def __init__(
         self,
         maskgit: MaskGit,
-        dataloader,
-        valid_dataloader,
-        accelerator,
+        dataloader: DataLoader,
+        valid_dataloader: DataLoader,
+        accelerator: Accelerator,
         *,
-        current_step,
-        num_train_steps,
-        batch_size,
-        gradient_accumulation_steps=1,
+        current_step: int,
+        num_train_steps: int,
+        batch_size: int,
+        gradient_accumulation_steps: int = 1,
         max_grad_norm=None,
-        save_results_every=100,
-        save_model_every=1000,
+        log_model_every: int = 1000,
+        save_results_every: int = 100,
+        save_model_every: int = 1000,
         results_dir="./results",
         logging_dir="./results/logs",
         apply_grad_penalty_every=4,
@@ -71,6 +72,7 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
             accelerator=accelerator,
             accelerate_kwargs=accelerate_kwargs)
 
+        self.log_model_every = log_model_every
         # maskgit
         self.model = maskgit
         self.model.vae.requires_grad_(False)
@@ -84,7 +86,15 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
         # optimizers
 
         self.optim = Adam(transformer_parameters, lr=lr)
+        # init accelerator tracker
+        config = {
+            "num_train_steps": num_train_steps,
+            "lr": lr,
+            "batch_size": batch_size,
+            "gradient_accumulation_steps": gradient_accumulation_steps,
 
+        }
+        accelerator.init_trackers("maskgit_trainer", config=config)
         # prepare with accelerator
 
         (
@@ -124,13 +134,15 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
         train_loss = 0
         with self.accelerator.accumulate(self.model):
             imgs, input_ids, attn_mask = next(self.dl_iter)
-            text_embeds = t5_encode_text_from_encoded(input_ids, attn_mask, self.model.transformer.t5, device)
             imgs = imgs.to(device)
+
+
+            text_embeds = t5_encode_text_from_encoded(input_ids, attn_mask, self.model.transformer.t5, device)
             loss = self.model(
                 imgs,
                 text_embeds=text_embeds,
-                add_gradient_penalty = apply_grad_penalty,
-                return_loss = True
+                # add_gradient_penalty = apply_grad_penalty,
+                # return_loss = True
             )
             avg_loss = self.accelerator.gather(loss.repeat(self.batch_size)).mean()
             train_loss += avg_loss.item() / self.gradient_accumulation_steps
