@@ -23,6 +23,7 @@ T5_CONFIGS = {}
 
 def get_tokenizer(name):
     tokenizer = T5Tokenizer.from_pretrained(name, use_fast=False)
+    
     return tokenizer
 
 def get_model(name):
@@ -38,8 +39,6 @@ def get_model_and_tokenizer(name):
         T5_CONFIGS[name]["model"] = get_model(name)
     if "tokenizer" not in T5_CONFIGS[name]:
         T5_CONFIGS[name]["tokenizer"] = get_tokenizer(name)
-    
-    # print(T5_CONFIGS)
 
     return T5_CONFIGS[name]['model'], T5_CONFIGS[name]['tokenizer']
 
@@ -57,7 +56,6 @@ def get_encoded_dim(name):
     return config.d_model
 
 # encoding text
-
 def t5_encode_text_from_encoded(input_ids,
                                 attn_mask,
                                 t5,
@@ -66,9 +64,9 @@ def t5_encode_text_from_encoded(input_ids,
         t5 = t5.cuda()
 
     device = next(t5.parameters()).device
-
+    input_ids = input_ids.to(device)
+    attn_mask = attn_mask.to(device)
     t5.eval()
-
     with torch.no_grad():
         output = t5(input_ids = input_ids, attention_mask = attn_mask)
         encoded_text = output.last_hidden_state.detach()
@@ -99,4 +97,4 @@ def t5_encode_text(
         max_length = MAX_LENGTH,
         truncation = True
     )
-    return t5_encode_text_from_encoded(encoded.input_ids, encoded.attn_mask, t5, output_device)
+    return t5_encode_text_from_encoded(encoded.input_ids, encoded.attention_mask, t5, output_device)
