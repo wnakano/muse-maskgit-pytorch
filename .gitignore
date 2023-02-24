@@ -132,3 +132,5 @@ dmypy.json
 # Custom Ignores:
 # vae models dir
 vae/
+# testing-scripts dir
+test-scripts/
