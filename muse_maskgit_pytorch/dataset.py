@@ -39,17 +39,13 @@ class ImageTextDataset(ImageDataset):
 
     def __getitem__(self, index):
         image_path = self.dataset[index][self.image_column]
+        descriptions = self.dataset[index][self.caption_column]
+        text = random.choice(descriptions)
         image = Image.open(image_path)
         if not image.mode == "RGB":
             image = image.convert("RGB")
         if self.caption_column == None:
             text = ""
-        else:
-            caption_file = self.dataset[index][self.caption_column]
-            descriptions = Path(caption_file).read_text().split('\n')
-            descriptions = list(filter(lambda t: len(t) > 0, descriptions))
-            # rn only working with 1st caption
-            text = descriptions[0]
             
         encoded = self.tokenizer.batch_encode_plus(
             [text],
@@ -69,10 +65,11 @@ def get_dataset_from_dataroot(data_root, args):
     data_dict = {args.image_column: [], args.caption_column: []}
     dataset = datasets.Dataset.from_dict(data_dict)
     for image_path in image_paths:
-        image = Image.open(image_path)
-        if not image.mode == "RGB":
-            image = image.convert("RGB")
-        dataset.add_item({args.image_column: image, args.caption_column: None})
+        caption_path = image_path.with_suffix(".txt")
+        captions = caption_path.read_text().split('\n')
+        captions = list(filter(lambda t: len(t) > 0, captions))
+        dataset = dataset.add_item({args.image_column: str(image_path), args.caption_column: captions})
+
     return dataset
 
 def split_dataset_into_dataloaders(dataset, valid_frac=0.05, seed=42, batch_size=1):
