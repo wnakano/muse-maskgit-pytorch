@@ -169,7 +169,15 @@ def parse_args():
 
 def main():
     args = parse_args()
-    accelerator = get_accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps,mixed_precision=args.mixed_precision)
+    accelerate_kwargs={
+        'mixed_precision': "no", # 'fp16',
+        'gradient_accumulation_steps': args.gradient_accumulation_steps,
+        'device_placement': False,
+        'split_batches': True,
+        "log_with": "tensorboard",
+        "logging_dir": "."
+    }
+    accelerator = get_accelerator(**accelerate_kwargs)
     if args.train_data_dir:
         dataset = get_dataset_from_dataroot(args.train_data_dir, args)
     elif args.dataset_name:
@@ -212,12 +220,7 @@ def main():
     ).cuda()
     dataset = ImageTextDataset(dataset, args.image_size, transformer.tokenizer, image_column=args.image_column, caption_column=args.caption_column)
     dataloader, validation_dataloader = split_dataset_into_dataloaders(dataset, args.valid_frac, args.seed, args.batch_size)
-    accelerate_kwargs={
-            #'mixed_precision': 'fp16',
-            'gradient_accumulation_steps': 2,
-            'device_placement': False,
-            'split_batches': True,
-        }
+
     trainer = MaskGitTrainer(
         maskgit,\
         dataloader,
