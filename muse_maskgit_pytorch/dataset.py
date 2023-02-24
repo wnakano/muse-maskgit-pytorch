@@ -36,20 +36,19 @@ class ImageTextDataset(ImageDataset):
         super().__init__(dataset, image_size=image_size, image_column=image_column)
         self.caption_column = caption_column
         self.tokenizer = tokenizer
+
     def __getitem__(self, index):
         image_path = self.dataset[index][self.image_column]
         image = Image.open(image_path)
         if not image.mode == "RGB":
             image = image.convert("RGB")
-
-        
-        
         if self.caption_column == None:
             text = ""
         else:
             caption_file = self.dataset[index][self.caption_column]
             descriptions = Path(caption_file).read_text().split('\n')
             descriptions = list(filter(lambda t: len(t) > 0, descriptions))
+            # rn only working with 1st caption
             text = descriptions[0]
             
         encoded = self.tokenizer.batch_encode_plus(
@@ -62,6 +61,11 @@ class ImageTextDataset(ImageDataset):
 
         input_ids = encoded.input_ids
         attn_mask = encoded.attention_mask
+        
+        # dirty way to fix shape issue
+        input_ids = input_ids.squeeze(0)
+        attn_mask = attn_mask.squeeze(0)
+        
         return self.transform(image), input_ids, attn_mask
 
 def get_dataset_from_dataroot(data_root, args):
@@ -71,13 +75,9 @@ def get_dataset_from_dataroot(data_root, args):
     image_paths = image_paths[:1000]
     print(f"Found {len(image_paths)} images")
     for image_path in image_paths:
-        # image = Image.open(image_path)
-        # if not image.mode == "RGB":
-        #     image = image.convert("RGB")
-        
-        text_file = str(image_path).replace("jpg", "txt") 
-
-        data_dict[args.image_column].append(str(image_path))
+        image_path = str(image_path)
+        text_file = image_path.replace("jpg", "txt") 
+        data_dict[args.image_column].append(image_path)
         data_dict[args.caption_column].append(text_file)
 
     return datasets.Dataset.from_dict(data_dict)
