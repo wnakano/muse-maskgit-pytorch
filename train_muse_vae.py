@@ -47,9 +47,9 @@ def parse_args():
         "--image_column", type=str, default="image", help="The column of the dataset containing an image."
     )
     parser.add_argument(
-        "--report_to",
+        "--log_with",
         type=str,
-        default="tensorboard",
+        default="wandb",
         help=(
             'The integration to report the results and logs to. Supported platforms are `"tensorboard"`'
             ' (default), `"wandb"` and `"comet_ml"`. Use `"all"` to report to all integrations.'
@@ -130,11 +130,13 @@ def parse_args():
 
 def main():
     args = parse_args()
-    accelerator = get_accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps,mixed_precision=args.mixed_precision)
+    accelerator = get_accelerator(log_with=args.log_with, gradient_accumulation_steps=args.gradient_accumulation_steps,mixed_precision=args.mixed_precision, logging_dir=args.logging_dir)
+    if accelerator.is_main_process:
+        accelerator.init_trackers("muse_vae", config=vars(args))
     if args.train_data_dir:
         dataset = get_dataset_from_dataroot(args.train_data_dir, args)
     elif args.dataset_name:
-        dataset = load_dataset(args.dataset_name)
+        dataset = load_dataset(args.dataset_name)["train"]
     vae = VQGanVAE(dim=args.dim, vq_codebook_size=args.vq_codebook_size)
     dataset = ImageDataset(dataset, args.image_size, image_column=args.image_column)
     # dataloader
@@ -147,7 +149,6 @@ def main():
         accelerator,
         current_step=0,
         num_train_steps=args.num_train_steps,
-        batch_size=args.batch_size,
         lr=args.lr,
         max_grad_norm=args.max_grad_norm,
         discr_max_grad_norm=args.discr_max_grad_norm,
@@ -159,7 +160,7 @@ def main():
         ema_beta=args.ema_beta,
         ema_update_after_step=args.ema_update_after_step,
         ema_update_every=args.ema_update_every,
-        apply_grad_penalty_every=args.apply_grad_penaly_every,
+        apply_grad_penalty_every=args.apply_grad_penalty_every,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
     )
 

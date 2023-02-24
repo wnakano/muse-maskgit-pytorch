@@ -85,9 +85,9 @@ def parse_args():
         help="The column of the dataset containing a caption or a list of captions.",
     )
     parser.add_argument(
-        "--report_to",
+        "--log_with",
         type=str,
-        default="tensorboard",
+        default="wandb",
         help=(
             'The integration to report the results and logs to. Supported platforms are `"tensorboard"`'
             ' (default), `"wandb"` and `"comet_ml"`. Use `"all"` to report to all integrations.'
@@ -115,7 +115,7 @@ def parse_args():
 
     # vae_trainer args
     parser.add_argument(
-        "--resume_from",
+        "--vae_path",
         type=str,
         default="",
         help="Path to the vae model. eg. 'results/vae.steps.pt'",
@@ -146,6 +146,12 @@ def parse_args():
         "--gradient_accumulation_steps", type=int, default=1, help="Gradient Accumulation."
     )
     parser.add_argument(
+        "--log_model_every",
+        type=int,
+        default=100,
+        help="Log model every this number of steps.",
+    )
+    parser.add_argument(
         "--save_results_every",
         type=int,
         default=100,
@@ -169,19 +175,13 @@ def parse_args():
 
 def main():
     args = parse_args()
-    accelerate_kwargs={
-        'mixed_precision': "no", # 'fp16',
-        'gradient_accumulation_steps': args.gradient_accumulation_steps,
-        'device_placement': False,
-        'split_batches': True,
-        "log_with": "tensorboard",
-        "logging_dir": "."
-    }
-    accelerator = get_accelerator(**accelerate_kwargs)
+    accelerator = get_accelerator(log_with=args.log_with, gradient_accumulation_steps=args.gradient_accumulation_steps,mixed_precision=args.mixed_precision, logging_dir=args.logging_dir)
+    if accelerator.is_main_process:
+        accelerator.init_trackers("muse_maskgit", config=vars(args))
     if args.train_data_dir:
         dataset = get_dataset_from_dataroot(args.train_data_dir, args)
     elif args.dataset_name:
-        dataset = load_dataset(args.dataset_name)
+        dataset = load_dataset(args.dataset_name)["train"]
 
 
     vae = VQGanVAE(
@@ -189,8 +189,8 @@ def main():
         vq_codebook_size = args.vq_codebook_size
     ).cuda()
 
-    print ('Resuming VAE from: ', args.resume_from)
-    vae.load(args.resume_from)    # you will want to load the exponentially moving averaged VAE
+    print ('Resuming VAE from: ', args.vae_path)
+    vae.load(args.vae_path)    # you will want to load the exponentially moving averaged VAE
 
     # then you plug the vae and transformer into your MaskGit as so
 
@@ -243,7 +243,7 @@ def main():
         apply_grad_penalty_every=args.apply_grad_penalty_every,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         validation_prompt=args.validation_prompt,
-        accelerate_kwargs=accelerate_kwargs
+        log_model_every=args.log_model_every
     )
 
     trainer.train()
