@@ -138,3 +138,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# Custom Ignores:
+# vae models dir
+vae/
+# testing-scripts dir
+test-scripts/

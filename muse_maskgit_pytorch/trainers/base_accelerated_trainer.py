@@ -158,7 +158,6 @@ class BaseAcceleratedTrainer(nn.Module):
             optim=self.optim.state_dict(),
         )
         torch.save(pkg, path)
-
     def load(self, path):
         path = Path(path)
         assert path.exists()
@@ -198,7 +197,6 @@ class BaseAcceleratedTrainer(nn.Module):
                         ]
                     }
                 )
-
     def print(self, msg):
         self.accelerator.print(msg)
 

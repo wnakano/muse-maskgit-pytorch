@@ -43,17 +43,18 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
     def __init__(
         self,
         maskgit: MaskGit,
-        dataloader,
-        valid_dataloader,
-        accelerator,
+        dataloader: DataLoader,
+        valid_dataloader: DataLoader,
+        accelerator: Accelerator,
         *,
-        current_step,
-        num_train_steps,
-        batch_size,
-        gradient_accumulation_steps=1,
+        current_step: int,
+        num_train_steps: int,
+        batch_size: int,
+        gradient_accumulation_steps: int = 1,
         max_grad_norm=None,
-        save_results_every=100,
-        save_model_every=1000,
+        log_model_every: int = 1000,
+        save_results_every: int = 100,
+        save_model_every: int = 1000,
         results_dir="./results",
         logging_dir="./results/logs",
         apply_grad_penalty_every=4,
@@ -166,7 +167,9 @@ class MaskGitTrainer(BaseAcceleratedTrainer):
 
         if self.use_ema:
             ema_model = self.ema_model.module if self.is_distributed else self.ema_model
+        
         self.model.train()
+
         # logs
         train_loss = 0
         with self.accelerator.accumulate(self.model):

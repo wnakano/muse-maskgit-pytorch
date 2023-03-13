@@ -319,6 +319,8 @@ def main():
     transformer.t5.to(accelerator.device)
 
     # (2) pass your trained VAE and the base transformer to MaskGit
+    
+    # print(dir(transformer.tokenizer))
 
     maskgit = MaskGit(
         vae=vae,  # vqgan vae

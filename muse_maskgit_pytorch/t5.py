@@ -25,7 +25,8 @@ T5_CONFIGS = {}
 
 
 def get_tokenizer(name):
-    tokenizer = T5Tokenizer.from_pretrained(name)
+    tokenizer = T5Tokenizer.from_pretrained(name, use_fast=False)
+    
     return tokenizer
 
 
@@ -79,7 +80,6 @@ def t5_encode_text_from_encoded(input_ids, attn_mask, t5, output_device):
 
     encoded_text.to(output_device)
     return encoded_text
-
 
 @beartype
 def t5_encode_text(texts: Union[str, List[str]], tokenizer, t5, output_device=None):

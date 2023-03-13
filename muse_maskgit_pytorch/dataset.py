@@ -36,10 +36,9 @@ class ImageDataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, index):
-        image = self.dataset[index][self.image_column]
-        return self.transform(image)-0.5
-
-
+        image= self.dataset[index][self.image_column]
+        return self.transform(image)
+    
 class ImageTextDataset(ImageDataset):
     def __init__(
         self,
@@ -62,9 +61,11 @@ class ImageTextDataset(ImageDataset):
         self.tokenizer = tokenizer
 
     def __getitem__(self, index):
-        image = self.dataset[index][self.image_column]
-        descriptions = self.dataset[index][self.caption_column]
-        if self.caption_column == None or descriptions == None:
+        image_path = self.dataset[index][self.image_column]
+        image = Image.open(image_path)
+        if not image.mode == "RGB":
+            image = image.convert("RGB")
+        if self.caption_column == None:
             text = ""
         elif isinstance(descriptions, list):
             if len(descriptions) == 0:
@@ -72,8 +73,12 @@ class ImageTextDataset(ImageDataset):
             else:
                 text = random.choice(descriptions)
         else:
-            text = descriptions
-        # max length from the paper
+            caption_file = self.dataset[index][self.caption_column]
+            descriptions = Path(caption_file).read_text().split('\n')
+            descriptions = list(filter(lambda t: len(t) > 0, descriptions))
+            # rn only working with 1st caption
+            text = descriptions[0]
+            
         encoded = self.tokenizer.batch_encode_plus(
             [str(text)],
             return_tensors="pt",
@@ -84,7 +89,12 @@ class ImageTextDataset(ImageDataset):
 
         input_ids = encoded.input_ids
         attn_mask = encoded.attention_mask
-        return self.transform(image), input_ids[0], attn_mask[0]
+        
+        # dirty way to fix shape issue
+        input_ids = input_ids.squeeze(0)
+        attn_mask = attn_mask.squeeze(0)
+        
+        return self.transform(image), input_ids, attn_mask
 
 
 def get_dataset_from_dataroot(
@@ -94,22 +104,16 @@ def get_dataset_from_dataroot(
         return load_from_disk(save_path)
     image_paths = list(Path(data_root).rglob("*.[jJ][pP][gG]"))
     random.shuffle(image_paths)
-    data_dict = {image_column: [], caption_column: []}
-    for image_path in tqdm(image_paths):
-        caption_path = image_path.with_suffix(".txt")
-        if os.path.exists(str(caption_path)):
-            captions = caption_path.read_text(encoding="utf-8").split("\n")
-            captions = list(filter(lambda t: len(t) > 0, captions))
-        else:
-            captions = []
+    data_dict = {args.image_column: [], args.caption_column: []}
+    image_paths = image_paths[:1000]
+    print(f"Found {len(image_paths)} images")
+    for image_path in image_paths:
         image_path = str(image_path)
-        data_dict[image_column].append(image_path)
-        data_dict[caption_column].append(captions)
-    dataset = datasets.Dataset.from_dict(data_dict)
-    dataset = dataset.cast_column(image_column, Image())
-    dataset.save_to_disk(save_path)
-    return dataset
+        text_file = image_path.replace("jpg", "txt") 
+        data_dict[args.image_column].append(image_path)
+        data_dict[args.caption_column].append(text_file)
 
+    return datasets.Dataset.from_dict(data_dict)
 
 def split_dataset_into_dataloaders(dataset, valid_frac=0.05, seed=42, batch_size=1):
     if valid_frac > 0:
