@@ -157,9 +157,11 @@ class VQGanVAETaming(nn.Module):
         fmap, loss, (_, _, min_encodings_indices) = self.model.encode(im_seq)
 
         b, _, h, w = fmap.shape
-        min_encodings_indices = rearrange(
-            min_encodings_indices, "(b h w) 1 -> b h w", h=h, w=w, b=b
-        )
+        if len(min_encodings_indices.shape) == 2:
+            min_encodings_indices = rearrange(min_encodings_indices, "(b h w) 1 -> b h w", h=h, w=w, b=b)
+        else:
+            min_encodings_indices = rearrange(min_encodings_indices, "(b h w) -> b h w", h=h, w=w, b=b)
+
         return fmap, min_encodings_indices, loss
 
     def decode_ids(self, ids):
